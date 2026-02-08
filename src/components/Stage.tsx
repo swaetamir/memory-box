@@ -23,6 +23,10 @@ export default function Stage({
       // fit whole stage inside view
       const s = Math.min(vw / baseWidth, vh / baseHeight);
 
+    // clamp scale
+    const clamped = Math.max(0.65, Math.min(1, s));
+    setScale(clamped);
+
       // don’t upscale on big screens 
       setScale(Math.min(1, s));
     }
