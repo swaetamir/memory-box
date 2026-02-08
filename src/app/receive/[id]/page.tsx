@@ -354,7 +354,7 @@ export default function ReceivePage() {
           </div>
 
           {/* footer */}
-          <div className="absolute left-[66px] bottom-[40px] font-gambarino text-[20px] opacity-70">
+          <div className="absolute left-[790px] bottom-[40px] font-gambarino text-[20px] opacity-70">
             made with memory box
           </div>
         </>
