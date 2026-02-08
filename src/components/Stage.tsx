@@ -17,21 +17,19 @@ export default function Stage({
 
   useEffect(() => {
     function recalc() {
-        const vw = window.innerWidth;
-        const vh = window.innerHeight;
-      
-        // base fit (keeps whole 1728x960 visible)
-        const fit = Math.min(vw / baseWidth, vh / baseHeight);
-      
-        // makw bigger on phone
-        const isPhone = vw <= 480;
-        const boost = isPhone ? 1.35 : 1; // keep between 1.25–1.5
-      
-        const s = fit * boost;
-      
-        // never upscale above 1 on desktop
-        setScale(Math.min(1, s));
-      }
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+
+      // base fit (keeps whole 1728x960 visible)
+      const fit = Math.min(vw / baseWidth, vh / baseHeight);
+
+      // make bigger on phone
+      const isPhone = vw <= 480;
+      const boost = isPhone ? 1.35 : 1;
+
+      const s = Math.min(1, fit * boost);
+      setScale(s);
+    }
 
     recalc();
     window.addEventListener("resize", recalc);
@@ -40,15 +38,21 @@ export default function Stage({
 
   return (
     <div
-      className="w-screen bg-[#101B36] flex items-center justify-center overflow-x-hidden"
-      style={{ minHeight: "100dvh", paddingBottom: "env(safe-area-inset-bottom)", paddingTop: "env(safe-area-inset-top)" }}
+      className="w-screen bg-[#101B36] overflow-x-hidden"
+      style={{
+        minHeight: "100dvh",
+        paddingBottom: "env(safe-area-inset-bottom)",
+        paddingTop: "env(safe-area-inset-top)",
+      }}
     >
       <div
         style={{
           width: baseWidth,
           height: baseHeight,
-          transform: `scale(${scale})`,
+          // center scaled stage
+          transform: `translate(${Math.max(0, (typeof window !== "undefined" ? (window.innerWidth - baseWidth * scale) / 2 : 0))}px, ${Math.max(0, (typeof window !== "undefined" ? (window.innerHeight - baseHeight * scale) / 2 : 0))}px) scale(${scale})`,
           transformOrigin: "top left",
+          willChange: "transform",
         }}
         className="relative"
       >
