@@ -11,7 +11,7 @@ export default function Home() {
       <div className="absolute left-1/2 top-[760px] -translate-x-1/2 text-white">
         <Link href="/choose" className="inline-block">
           <div className="text-[85px] leading-none font-gambarino">send a box →</div>
-          <div className="mt-1 w-[520px] border-t-4 border-white" />
+          <div className="mt-1 w-[475px] border-t-4 border-white" />
         </Link>
       </div>
     </main>

@@ -36,6 +36,192 @@ type SongItem = {
 };
 
 const STORAGE_KEY = "memory-box:draft:add";
+const SHARE_PREFIX = "memory-box:box:";
+
+function hashStringToInt(str: string) {
+    // simple deterministic hash (stable)
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return Math.abs(h);
+  }
+  
+  function detectThemeFromText(text: string): { theme: string; others: number } {
+    const t = text.toLowerCase();
+  
+    const themes: {
+      key: string;
+      label: string;
+      keywords: string[];
+      min: number;
+      max: number;
+    }[] = [
+        {
+          key: "family",
+          label: "family & home",
+          keywords: [
+            "mom",
+            "mother",
+            "dad",
+            "father",
+            "parents",
+            "family",
+            "brother",
+            "sister",
+            "siblings",
+            "aunt",
+            "uncle",
+            "cousin",
+            "grandma",
+            "grandmother",
+            "grandpa",
+            "grandfather",
+            "home",
+          ],
+          min: 20,
+          max: 110,
+        },
+        {
+          key: "love",
+          label: "love & romance",
+          keywords: [
+            "i love you",
+            "love u",
+            "my love",
+            "babe",
+            "baby",
+            "bf",
+            "girlfriend",
+            "boyfriend",
+            "husband",
+            "wife",
+            "partner",
+            "soulmate",
+            "forever",
+            "kiss",
+            "date",
+            "crush",
+            "valentine",
+          ],
+          min: 18,
+          max: 105,
+        },
+        {
+          key: "friendship",
+          label: "friendship & chosen family",
+          keywords: [
+            "friend",
+            "friends",
+            "friendship",
+            "bestie",
+            "best friend",
+            "roommate",
+            "girls night",
+            "group chat",
+            "crew",
+            "squad",
+            "the girls",
+            "hangout",
+          ],
+          min: 28,
+          max: 140,
+        },
+        {
+          key: "sisterhood",
+          label: "sisterhood & best friends by choice",
+          keywords: [
+            "sisterhood",
+            "girlhood",
+            "girls supporting girls",
+            "women supporting women",
+            "we got this",
+            "together",
+            "our",
+            "we",
+            "us",
+          ],
+          min: 30,
+          max: 150,
+        },
+        {
+          key: "gratitude",
+          label: "gratitude & appreciation",
+          keywords: ["thank", "grateful", "gratitude", "appreciate", "appreciation", "<3"],
+          min: 24,
+          max: 92,
+        },
+        {
+          key: "longing",
+          label: "longing & missing",
+          keywords: ["miss", "missing", "wish you were", "i wish", "distance", "apart", "miss us", "think about you"],
+          min: 18,
+          max: 80,
+        },
+        {
+          key: "grief",
+          label: "grief & remembrance",
+          keywords: ["rest in peace", "rip", "passed", "loss", "gone", "grief", "funeral", "remember"],
+          min: 10,
+          max: 60,
+        },
+        {
+          key: "heartbreak",
+          label: "heartbreak & letting go",
+          keywords: ["ex", "breakup", "broken", "hurt", "goodbye", "let go", "moving on", "i miss you", "i still think about you"],
+          min: 22,
+          max: 100,
+        },
+        {
+          key: "celebration",
+          label: "celebration & proud of you",
+          keywords: ["congrats", "proud", "celebrate", "birthday", "graduation", "achievement", "you did it", "congratulations", "you deserve this"],
+          min: 16,
+          max: 70,
+        },
+        {
+          key: "comfort",
+          label: "comfort",
+          keywords: ["you got this", "i’m here", "here for you", "breathe", "safe"],
+          min: 14,
+          max: 75,
+        },
+        {
+          key: "nostalgia",
+          label: "nostalgia & memories",
+          keywords: ["remember when", "back then", "nostalgia", "throwback", "old", "again"],
+          min: 12,
+          max: 65,
+        },
+      ];
+  
+    let bestLabel = "connection & memories";
+    let bestMin = 18;
+    let bestMax = 88;
+    let bestScore = 0;
+  
+    for (const th of themes) {
+      let score = 0;
+      for (const kw of th.keywords) {
+        if (t.includes(kw)) score += 2;
+      }
+      if (th.key === "sisterhood" && (t.includes(" we ") || t.includes(" us "))) score += 1;
+  
+      if (score > bestScore) {
+        bestScore = score;
+        bestLabel = th.label;
+        bestMin = th.min;
+        bestMax = th.max;
+      }
+    }
+  
+    // others
+    const h = hashStringToInt(t);
+    const others = bestMin + (h % (bestMax - bestMin + 1));
+  
+    return { theme: bestLabel, others };
+  }
 
 export default function ViewBoxPage() {
   const [notes, setNotes] = useState<NoteItem[]>([]);
@@ -48,6 +234,15 @@ export default function ViewBoxPage() {
   const searchParams = useSearchParams();
   const isSent = searchParams.get("sent") === "1";
   const isCommunity = searchParams.get("community") === "1";
+
+  const contentText = useMemo(() => {
+    const noteText = notes.map((n) => n.text ?? "").join(" ");
+    // include song URLs as weak signals 
+    const songText = songs.map((s) => s.embedUrl ?? "").join(" ");
+    return `${noteText} ${songText}`.trim();
+  }, [notes, songs]);
+  
+  const { theme, others } = useMemo(() => detectThemeFromText(contentText), [contentText]);
 
   useEffect(() => {
     try {
@@ -156,10 +351,10 @@ export default function ViewBoxPage() {
         <>
           {/* top left text */}
           <div className="absolute left-[66px] top-[30px] font-gambarino text-[25px]">
-            theme detected: sisterhood &amp; gratitude
+            theme detected: {theme}
           </div>
           <div className="absolute left-[67px] top-[65px] font-gambarino text-[25px]">
-            34 others have created boxes like this...
+            {others} others have created boxes like this...
           </div>
 
           {/* final rendered box */}
@@ -249,20 +444,29 @@ export default function ViewBoxPage() {
           <button
             type="button"
             onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(window.location.href);
-                setCopied(true);
-                if (copiedTimerRef.current) window.clearTimeout(copiedTimerRef.current);
-                copiedTimerRef.current = window.setTimeout(() => setCopied(false), 1200);
-
-                // sent page nav
-                window.setTimeout(() => {
-                  router.push("/create/view?sent=1");
-                }, 250);
-              } catch {
-                // ignore
-              }
-            }}
+                try {
+                  const id = crypto.randomUUID();
+              
+                  // store a shareable snapshot (receiver will read this)
+                  localStorage.setItem(
+                    `${SHARE_PREFIX}${id}`,
+                    JSON.stringify({ notes, photos, songs })
+                  );
+              
+                  const receiverUrl = `${window.location.origin}/receive/${id}`;
+                  await navigator.clipboard.writeText(receiverUrl);
+              
+                  setCopied(true);
+                  if (copiedTimerRef.current) window.clearTimeout(copiedTimerRef.current);
+                  copiedTimerRef.current = window.setTimeout(() => setCopied(false), 1200);
+              
+                  window.setTimeout(() => {
+                    router.push("/create/view?sent=1");
+                  }, 250);
+                } catch {
+                  // ignore
+                }
+              }}
             className="absolute left-[1410px] top-[857px] text-left hover:opacity-80"
           >
             <div className="font-gambarino text-[30px] leading-none">
