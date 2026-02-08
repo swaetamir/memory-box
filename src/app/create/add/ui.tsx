@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type React from "react";
 import Draggable, { DraggableData, DraggableEvent } from "react-draggable";
 import BoxCanvas from "@/components/box/BoxCanvas";
 import Link from "next/link";
@@ -23,6 +24,24 @@ type PhotoItem = {
   y: number;
   z: number;
   rotationDeg: number;
+};
+
+type SongItem = {
+  id: string;
+  type: "song";
+  embedUrl: string; // https://open.spotify.com/embed/...
+  x: number;
+  y: number;
+  z: number;
+};
+
+type SongDraft = {
+  id: string;
+  type: "song_draft";
+  input: string;
+  x: number;
+  y: number;
+  z: number;
 };
 
 const STORAGE_KEY = "memory-box:draft:add";
@@ -182,9 +201,76 @@ function DraggablePhoto({
   );
 }
 
+function DraggableSong({
+  song,
+  bringToFront,
+  moveSong,
+  deleteSong,
+}: {
+  song: SongItem;
+  bringToFront: (id: string) => void;
+  moveSong: (id: string, x: number, y: number) => void;
+  deleteSong: (id: string) => void;
+}) {
+  const nodeRef = useRef<HTMLDivElement>(null);
+
+  return (
+    <Draggable
+      nodeRef={nodeRef}
+      bounds="parent"
+      handle=".drag-handle"
+      position={{ x: song.x, y: song.y }}
+      onStart={() => bringToFront(song.id)}
+      onStop={(_e: DraggableEvent, data: DraggableData) => {
+        const nx = clamp(data.x, 0, 871);
+        const ny = clamp(data.y, 0, 538);
+        moveSong(song.id, nx, ny);
+      }}
+    >
+      <div
+        ref={nodeRef}
+        style={{ zIndex: song.z }}
+        className="absolute"
+        onMouseDown={() => bringToFront(song.id)}
+      >
+        <div className="group w-[340px] relative">
+          <button
+            className="absolute -top-2 -right-2 z-10 w-6 h-6 rounded-full bg-black/60 text-white hover:bg-black/75 flex items-center justify-center text-sm opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+            onClick={() => deleteSong(song.id)}
+            aria-label="Delete song"
+            type="button"
+          >
+            ×
+          </button>
+
+          {/* move box */}
+          <div className="drag-handle flex items-center justify-between px-3 py-1.5 bg-black/30 rounded-t-md cursor-grab active:cursor-grabbing">
+            <div className="font-gambarino text-white/90 text-[14px] leading-none">song</div>
+            <div className="text-white/50 text-[11px] leading-none">move</div>
+          </div>
+
+          <div className="overflow-hidden rounded-b-md shadow-[10px_12px_4px_rgba(0,0,0,0.25)]">
+            <iframe
+              src={song.embedUrl}
+              width="100%"
+              height="152"
+              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+              loading="lazy"
+              style={{ border: 0 }}
+              title="Spotify embed"
+            />
+          </div>
+        </div>
+      </div>
+    </Draggable>
+  );
+}
+
 export default function AddStuffClient() {
   const [notes, setNotes] = useState<NoteItem[]>([]);
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
+  const [songs, setSongs] = useState<SongItem[]>([]);
+  const [songDraft, setSongDraft] = useState<SongDraft | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // load draft
@@ -192,7 +278,11 @@ export default function AddStuffClient() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
-      const parsed = JSON.parse(raw) as { notes?: NoteItem[]; photos?: PhotoItem[] };
+      const parsed = JSON.parse(raw) as {
+        notes?: NoteItem[];
+        photos?: PhotoItem[];
+        songs?: SongItem[];
+      };
 
       if (parsed?.notes) {
         setNotes(
@@ -213,6 +303,10 @@ export default function AddStuffClient() {
           }))
         );
       }
+
+      if (parsed?.songs) {
+        setSongs(parsed.songs);
+      }
     } catch {
       // ignore
     }
@@ -221,17 +315,19 @@ export default function AddStuffClient() {
   // save draft
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ notes, photos }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ notes, photos, songs }));
     } catch {
       // ignore
     }
-  }, [notes, photos]);
+  }, [notes, photos, songs]);
 
   const nextZ = useMemo(() => {
     const maxNotes = notes.reduce((m, n) => Math.max(m, n.z), 0);
     const maxPhotos = photos.reduce((m, p) => Math.max(m, p.z), 0);
-    return Math.max(maxNotes, maxPhotos) + 1;
-  }, [notes, photos]);
+    const maxSongs = songs.reduce((m, s) => Math.max(m, s.z), 0);
+    const draftZ = songDraft?.z ?? 0;
+    return Math.max(maxNotes, maxPhotos, maxSongs, draftZ) + 1;
+  }, [notes, photos, songs, songDraft]);
 
   function addNote() {
     const id = crypto.randomUUID();
@@ -252,10 +348,14 @@ export default function AddStuffClient() {
   function bringToFront(id: string) {
     const maxNotes = notes.reduce((m, n) => Math.max(m, n.z), 0);
     const maxPhotos = photos.reduce((m, p) => Math.max(m, p.z), 0);
-    const topZ = Math.max(maxNotes, maxPhotos) + 1;
+    const maxSongs = songs.reduce((m, s) => Math.max(m, s.z), 0);
+    const draftZ = songDraft?.z ?? 0;
+    const topZ = Math.max(maxNotes, maxPhotos, maxSongs, draftZ) + 1;
 
     setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, z: topZ } : n)));
     setPhotos((prev) => prev.map((p) => (p.id === id ? { ...p, z: topZ } : p)));
+    setSongs((prev) => prev.map((s) => (s.id === id ? { ...s, z: topZ } : s)));
+    setSongDraft((prev) => (prev?.id === id ? { ...prev, z: topZ } : prev));
   }
 
   function moveNote(id: string, x: number, y: number) {
@@ -320,10 +420,188 @@ export default function AddStuffClient() {
     reader.readAsDataURL(file);
   }
 
+  function toSpotifyEmbedUrl(input: string): string {
+    const trimmed = input.trim();
+    if (!trimmed) return "";
+
+    // spotify:track:<id> style
+    if (trimmed.startsWith("spotify:")) {
+      const parts = trimmed.split(":");
+      if (parts.length >= 3) {
+        const kind = parts[1];
+        const id = parts[2];
+        return `https://open.spotify.com/embed/${kind}/${id}`;
+      }
+    }
+
+    try {
+      const u = new URL(trimmed);
+      if (!u.hostname.includes("spotify.com")) return "";
+
+      // already an embed link
+      if (u.pathname.startsWith("/embed/")) {
+        return `https://open.spotify.com${u.pathname}`;
+      }
+
+      const segs = u.pathname.split("/").filter(Boolean); // ["track","id"]
+      if (segs.length >= 2) {
+        const kind = segs[0];
+        const id = segs[1];
+        return `https://open.spotify.com/embed/${kind}/${id}`;
+      }
+    } catch {
+      return "";
+    }
+
+    return "";
+  }
+
+  function moveSong(id: string, x: number, y: number) {
+    setSongs((prev) => prev.map((s) => (s.id === id ? { ...s, x, y } : s)));
+  }
+
+  function deleteSong(id: string) {
+    setSongs((prev) => prev.filter((s) => s.id !== id));
+  }
+
+  function startSongDraft() {
+    // if one is already open brings it to front
+    if (songDraft) {
+      bringToFront(songDraft.id);
+      return;
+    }
+
+    const id = crypto.randomUUID();
+    setSongDraft({
+      id,
+      type: "song_draft",
+      input: "",
+      x: 60,
+      y: 320,
+      z: nextZ,
+    });
+  }
+
+  function moveSongDraft(x: number, y: number) {
+    setSongDraft((prev) => (prev ? { ...prev, x, y } : prev));
+  }
+
+  function updateSongDraftInput(input: string) {
+    setSongDraft((prev) => (prev ? { ...prev, input } : prev));
+  }
+
+  function cancelSongDraft() {
+    setSongDraft(null);
+  }
+
+  function commitSongDraft() {
+    if (!songDraft) return;
+    const embedUrl = toSpotifyEmbedUrl(songDraft.input);
+    if (!embedUrl) {
+      window.alert("that doesn’t look like a spotify link 😭 try again.");
+      return;
+    }
+
+    const id = crypto.randomUUID();
+    setSongs((prev) => [
+      ...prev,
+      {
+        id,
+        type: "song",
+        embedUrl,
+        x: songDraft.x,
+        y: songDraft.y,
+        z: songDraft.z,
+      },
+    ]);
+
+    setSongDraft(null);
+  }
+  function DraggableSongDraft({
+    draft,
+    bringToFront,
+    moveDraft,
+    updateInput,
+    onCancel,
+    onCommit,
+  }: {
+    draft: SongDraft;
+    bringToFront: (id: string) => void;
+    moveDraft: (x: number, y: number) => void;
+    updateInput: (val: string) => void;
+    onCancel: () => void;
+    onCommit: () => void;
+  }) {
+    const nodeRef = useRef<HTMLDivElement>(null);
+
+    return (
+      <Draggable
+        nodeRef={nodeRef}
+        bounds="parent"
+        handle=".drag-handle"
+        position={{ x: draft.x, y: draft.y }}
+        onStart={() => bringToFront(draft.id)}
+        onStop={(_e: DraggableEvent, data: DraggableData) => {
+          const nx = clamp(data.x, 0, 871);
+          const ny = clamp(data.y, 0, 538);
+          moveDraft(nx, ny);
+        }}
+      >
+        <div
+          ref={nodeRef}
+          style={{ zIndex: draft.z }}
+          className="absolute"
+          onMouseDown={() => bringToFront(draft.id)}
+        >
+          <div className="w-[340px] overflow-hidden rounded-md shadow-[10px_12px_4px_rgba(0,0,0,0.25)] bg-black/40">
+            <div className="drag-handle flex items-center justify-between px-3 py-1.5 bg-black/30 cursor-grab active:cursor-grabbing">
+              <div className="font-gambarino text-white/90 text-[14px] leading-none">
+                paste spotify link
+              </div>
+              <button
+                type="button"
+                onClick={onCancel}
+                className="text-white/70 hover:text-white text-[14px] leading-none"
+                aria-label="Cancel"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="p-3 bg-black/20">
+              <input
+                value={draft.input}
+                onChange={(e) => updateInput(e.target.value)}
+                placeholder="https://open.spotify.com/track/..."
+                className="w-full bg-white/10 text-white placeholder:text-white/50 px-3 py-2 rounded-md outline-none"
+              />
+              <div className="mt-3 flex gap-3 justify-end">
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  className="font-gambarino text-[16px] text-white/80 hover:text-white"
+                >
+                  cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={onCommit}
+                  className="font-gambarino text-[16px] text-white hover:opacity-90"
+                >
+                  add →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Draggable>
+    );
+  }
+
   return (
     <main className="relative min-h-screen bg-[#101B36] overflow-hidden">
       {/* canvas */}
-      <div className="absolute left-[59px] top-[74px]">
+      <div className="absolute left-[380px] top-[74px]">
         <BoxCanvas>
           {notes.map((note) => (
             <DraggableNote
@@ -346,19 +624,38 @@ export default function AddStuffClient() {
               rotatePhoto={rotatePhoto}
             />
           ))}
+          {songs.map((song) => (
+            <DraggableSong
+              key={song.id}
+              song={song}
+              bringToFront={bringToFront}
+              moveSong={moveSong}
+              deleteSong={deleteSong}
+            />
+          ))}
+          {songDraft && (
+            <DraggableSongDraft
+              draft={songDraft}
+              bringToFront={bringToFront}
+              moveDraft={moveSongDraft}
+              updateInput={updateSongDraftInput}
+              onCancel={cancelSongDraft}
+              onCommit={commitSongDraft}
+            />
+          )}
         </BoxCanvas>
       </div>
 
       {/* bottom controls */}
-      <div className="absolute left-[170px] top-[700px] flex gap-[90px] text-white font-gambarino text-[36px]">
-      <button
-        className="hover:opacity-80"
-        type="button"
-        onClick={() => fileInputRef.current?.click()}
+      <div className="absolute left-[500px] top-[700px] flex gap-[90px] text-white font-gambarino text-[36px]">
+        <button
+          className="hover:opacity-80"
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
         >
-        add a photo
+          add a photo
         </button>
-        <button className="hover:opacity-80" type="button">
+        <button className="hover:opacity-80" type="button" onClick={startSongDraft}>
           add a song
         </button>
         <button onClick={addNote} className="hover:opacity-80" type="button">
@@ -372,16 +669,16 @@ export default function AddStuffClient() {
         accept="image/*"
         className="hidden"
         onChange={handleAddPhoto}
-        />
+      />
 
       {/* view box */}
       <Link
         href="/create/view"
         className="absolute left-[1500px] top-[860px] text-white hover:opacity-80"
-        >
-        <div className="font-gambarino text-[48px] leading-none">view box →</div>
-        <div className="mt-1 w-[237.1px] border-t-[3px] border-white" />
-        </Link>
+      >
+        <div className="font-gambarino text-[30px] leading-none">view box →</div>
+        <div className="mt-1 w-[157px] border-t-[2px] border-white" />
+      </Link>
     </main>
   );
 }
