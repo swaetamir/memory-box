@@ -65,9 +65,17 @@ export default function ReceivePage() {
   const stage = useMemo(() => {
     const w = viewport.w || BASE_W;
     const h = viewport.h || BASE_H;
-    const scale = Math.min(w / BASE_W, h / BASE_H);
+  
+    const fit = Math.min(w / BASE_W, h / BASE_H);
+  
+    const isPhone = w <= 480;        
+    const boost = isPhone ? 1.35 : 1; // keep btwn 1.25–1.6
+  
+    const scale = Math.min(1, fit * boost);
+  
     const left = (w - BASE_W * scale) / 2;
     const top = (h - BASE_H * scale) / 2;
+  
     return { scale, left, top };
   }, [viewport.w, viewport.h]);
 

@@ -17,19 +17,21 @@ export default function Stage({
 
   useEffect(() => {
     function recalc() {
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-
-      // fit whole stage inside view
-      const s = Math.min(vw / baseWidth, vh / baseHeight);
-
-    // clamp scale
-    const clamped = Math.max(0.65, Math.min(1, s));
-    setScale(clamped);
-
-      // don’t upscale on big screens 
-      setScale(Math.min(1, s));
-    }
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+      
+        // base fit (keeps whole 1728x960 visible)
+        const fit = Math.min(vw / baseWidth, vh / baseHeight);
+      
+        // makw bigger on phone
+        const isPhone = vw <= 480;
+        const boost = isPhone ? 1.35 : 1; // keep between 1.25–1.5
+      
+        const s = fit * boost;
+      
+        // never upscale above 1 on desktop
+        setScale(Math.min(1, s));
+      }
 
     recalc();
     window.addEventListener("resize", recalc);
