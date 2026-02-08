@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Draggable, { DraggableData, DraggableEvent } from "react-draggable";
 import BoxCanvas from "@/components/box/BoxCanvas";
+import Link from "next/link";
 
 type NoteItem = {
   id: string;
@@ -374,12 +375,13 @@ export default function AddStuffClient() {
         />
 
       {/* view box */}
-      <div className="absolute left-[1500px] top-[860px] text-white">
-        <div className="font-gambarino text-[48px] leading-none opacity-100">
-          view box →
-        </div>
-        <div className="mt-1 w-[237.1px] border-t-[3px] border-white opacity-100" />
-      </div>
+      <Link
+        href="/create/view"
+        className="absolute left-[1500px] top-[860px] text-white hover:opacity-80"
+        >
+        <div className="font-gambarino text-[48px] leading-none">view box →</div>
+        <div className="mt-1 w-[237.1px] border-t-[3px] border-white" />
+        </Link>
     </main>
   );
 }
