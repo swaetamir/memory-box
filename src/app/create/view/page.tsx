@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import BoxCanvas from "@/components/box/BoxCanvas";
@@ -38,8 +38,29 @@ type SongItem = {
 const STORAGE_KEY = "memory-box:draft:add";
 const SHARE_PREFIX = "memory-box:box:";
 
+async function copyToClipboard(text: string) {
+  // picks modern Clipboard API when available + secure
+  if (typeof window !== "undefined" && window.isSecureContext && navigator?.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  // fallback for browsers/contexts where clipboard API is blocked
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.setAttribute("readonly", "true");
+  ta.style.position = "fixed";
+  ta.style.left = "-9999px";
+  ta.style.top = "-9999px";
+  document.body.appendChild(ta);
+  ta.select();
+  const ok = document.execCommand("copy");
+  document.body.removeChild(ta);
+  if (!ok) throw new Error("Clipboard blocked");
+}
+
 function hashStringToInt(str: string) {
-    // simple deterministic hash (stable)
+    // simple deterministic hash 
     let h = 2166136261;
     for (let i = 0; i < str.length; i++) {
       h ^= str.charCodeAt(i);
@@ -219,6 +240,7 @@ function hashStringToInt(str: string) {
     // others
     const h = hashStringToInt(t);
     const others = bestMin + (h % (bestMax - bestMin + 1));
+    
   
     return { theme: bestLabel, others };
   }
@@ -228,12 +250,34 @@ export default function ViewBoxPage() {
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [songs, setSongs] = useState<SongItem[]>([]);
   const [copied, setCopied] = useState(false);
-  const copiedTimerRef = useRef<number | null>(null);
-
+  const [shareUrl, setShareUrl] = useState<string>("");
+  const [copyError, setCopyError] = useState<string>("");
+  const [sending, setSending] = useState(false);
+  const [createdBoxId, setCreatedBoxId] = useState<string>("");
+  
   const router = useRouter();
   const searchParams = useSearchParams();
   const isSent = searchParams.get("sent") === "1";
   const isCommunity = searchParams.get("community") === "1";
+
+  const handleManualCopy = useCallback(async () => {
+    if (!shareUrl) return;
+    try {
+      setCopyError("");
+      await copyToClipboard(shareUrl);
+      setCopied(true);
+      if (copiedTimerRef.current) window.clearTimeout(copiedTimerRef.current);
+      copiedTimerRef.current = window.setTimeout(() => setCopied(false), 1200);
+
+      // after a successful copy, move to sent screen
+      window.setTimeout(() => {
+        router.push("/create/view?sent=1");
+      }, 650);
+    } catch {
+      setCopyError("Copy blocked — click the link field, press ⌘C, then try the copy button again.");
+    }
+  }, [shareUrl, router]);
+  const copiedTimerRef = useRef<number | null>(null);
 
   const contentText = useMemo(() => {
     const noteText = notes.map((n) => n.text ?? "").join(" ");
@@ -344,7 +388,7 @@ export default function ViewBoxPage() {
         </>
       )}
 
-      {/* hide the normal view content when showing sent page*/}
+      {/* hide normal view content when showing sent page*/}
       {(isSent || isCommunity) && null}
 
       {!isSent && !isCommunity && (
@@ -358,7 +402,7 @@ export default function ViewBoxPage() {
           </div>
 
           {/* final rendered box */}
-          <div className="absolute left-[420px] top-[180px]">
+          <div className="absolute left-[420px] top-[180px] pointer-events-none">
             <BoxCanvas>
               {/* notes */}
               {notes.map((note) => (
@@ -441,43 +485,66 @@ export default function ViewBoxPage() {
           </div>
 
           {/* final CTA */}
-          <button
-            type="button"
-            onClick={async () => {
+          {!shareUrl ? (
+            <button
+              type="button"
+              disabled={sending}
+              onClick={async () => {
                 try {
-                  const id = crypto.randomUUID();
-              
-                  // store a shareable snapshot (receiver will read this)
-                  localStorage.setItem(
-                    `${SHARE_PREFIX}${id}`,
-                    JSON.stringify({ notes, photos, songs })
-                  );
-              
-                  const receiverUrl = `${window.location.origin}/receive/${id}`;
-                  await navigator.clipboard.writeText(receiverUrl);
-              
-                  setCopied(true);
-                  if (copiedTimerRef.current) window.clearTimeout(copiedTimerRef.current);
-                  copiedTimerRef.current = window.setTimeout(() => setCopied(false), 1200);
-              
-                  window.setTimeout(() => {
-                    router.push("/create/view?sent=1");
-                  }, 250);
-                } catch {
-                  // ignore
+                  setCopyError("");
+                  setCopied(false);
+                  setShareUrl("");
+                  setCreatedBoxId("");
+                  setSending(true);
+
+                  const res = await fetch("/api/boxes", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ payload: { notes, photos, songs } }),
+                  });
+
+                  const json = await res.json();
+                  if (!res.ok) throw new Error(json?.error ?? "Failed to create box");
+
+                  const receiverUrl = `${window.location.origin}/receive/${json.id}`;
+                  setCreatedBoxId(json.id);
+                  setShareUrl(receiverUrl);
+                } catch (e: any) {
+                  console.error("SEND FAILED:", e);
+                  alert(`Send failed: ${e?.message ?? "unknown error"}`);
+                } finally {
+                  setSending(false);
                 }
               }}
-            className="absolute left-[1410px] top-[857px] text-left hover:opacity-80"
-          >
-            <div className="font-gambarino text-[30px] leading-none">
-              {copied ? "copied!" : "send via link →"}
+              className="absolute left-[1410px] top-[830px] z-50 text-left hover:opacity-80 disabled:opacity-50"
+            >
+              <div className="font-gambarino text-[30px] leading-none">
+                {sending ? "creating…" : "send via link →"}
+              </div>
+              <div className="mt-1 w-[205px] border-t-[2px] border-white" />
+            </button>
+          ) : null}
+          {shareUrl ? (
+            <div className="absolute left-[1400px] top-[840px] w-[400px] font-gambarino z-50">
+              <div className="text-[13px] opacity-80 mb-0.1">link:</div>
+              <div className="flex gap-2">
+                <input
+                  value={shareUrl}
+                  readOnly
+                  onClick={(e) => (e.currentTarget as HTMLInputElement).select()}
+                  className="flex-1 rounded-md bg-white/10 px-2 py-2 text-white outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleManualCopy}
+                  className="rounded-md bg-white/10 px-2 py-2 hover:bg-white/15"
+                >
+                  copy
+                </button>
+              </div>
+              {copyError ? <div className="mt-2 text-[12px] opacity-80">{copyError}</div> : null}
             </div>
-            <div
-              className={`mt-1 border-t-[2px] border-white transition-all duration-100 ${
-                copied ? "w-0 opacity-0" : "w-[205px] opacity-100"
-              }`}
-            />
-          </button>
+          ) : null}
         </>
       )}
     </main>

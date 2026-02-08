@@ -40,6 +40,7 @@ const SHARE_PREFIX = "memory-box:box:";
 
 export default function ReceivePage() {
   const [opened, setOpened] = useState(false);
+  const [animateIn, setAnimateIn] = useState(false);
 
   const [notes, setNotes] = useState<NoteItem[]>([]);
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
@@ -109,13 +110,26 @@ export default function ReceivePage() {
     }
   }, [shareId]);
 
+  useEffect(() => {
+    if (!opened) {
+      setAnimateIn(false);
+      return;
+    }
+
+    const raf = requestAnimationFrame(() => setAnimateIn(true));
+    return () => cancelAnimationFrame(raf);
+  }, [opened]);
+
   return (
     <main className="relative min-h-screen bg-[#101B36] text-white overflow-hidden">
       {!opened ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
           <button
             type="button"
-            onClick={() => setOpened(true)}
+            onClick={() => {
+              setAnimateIn(false);
+              setOpened(true);
+            }}
             className="hover:opacity-90 active:opacity-80"
             aria-label="Open the box"
           >
@@ -134,7 +148,12 @@ export default function ReceivePage() {
       ) : (
         <>
           {/* receiver */}
-          <div className="absolute left-[420px] top-[180px]">
+          <div
+            className={
+              "absolute left-[420px] top-[180px] transform-gpu transition-transform duration-700 ease-out " +
+              (animateIn ? "rotate-0 translate-y-0" : "rotate-[-3deg] translate-y-6")
+            }
+          >
             <BoxCanvas>
               {notes.map((note) => (
                 <div
