@@ -540,10 +540,12 @@ function hashStringToInt(str: string) {
               }}
               className="absolute left-[1410px] top-[830px] z-50 text-left hover:opacity-80 disabled:opacity-50"
             >
-              <div className="font-gambarino text-[30px] leading-none">
-                {sending ? "creating…" : "send via link →"}
-              </div>
-              <div className="mt-1 w-[205px] border-t-[2px] border-white" />
+              <div className="inline-block">
+                <div className="font-gambarino text-[30px] leading-none">
+                    {sending ? "creating…" : "send via link →"}
+                </div>
+                <div className="mt-1 w-full border-t-[2px] border-white" />
+                </div>
             </button>
           ) : null}
           {shareUrl ? (
