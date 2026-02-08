@@ -68,7 +68,10 @@ export default function ReceivePage() {
   
     const fit = Math.min(w / BASE_W, h / BASE_H);
   
-    const isPhone = w <= 480;        
+    const isPhone = viewport.w <= 480;
+    const receiverScale = isPhone ? 1.20 : 1; 
+    const receiverLeft = isPhone ? 250 : 420; 
+    const receiverTop = isPhone ? 140 : 180;    
     const boost = isPhone ? 1.35 : 1; // keep btwn 1.25–1.6
   
     const scale = Math.min(1, fit * boost);
