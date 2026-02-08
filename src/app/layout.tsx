@@ -2,7 +2,7 @@ import "./globals.css";
 import localFont from "next/font/local";
 
 const gambarino = localFont({
-  src: "./fonts/Gambarino-Regular.otf",
+  src: "../../public/fonts/Gambarino-Regular.otf",
   variable: "--font-gambarino",
   display: "swap",
 });
