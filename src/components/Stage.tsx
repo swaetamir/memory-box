@@ -25,7 +25,7 @@ export default function Stage({
 
       // make bigger on phone
       const isPhone = vw <= 480;
-      const boost = isPhone ? 1.35 : 1;
+      const boost = isPhone ? 1.5 : 1;
 
       const s = Math.min(1, fit * boost);
       setScale(s);
