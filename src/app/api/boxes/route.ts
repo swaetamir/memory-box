@@ -3,7 +3,9 @@ import { supabaseServer } from "@/lib/supabaseServer";
 
 export async function POST(req: Request) {
   const body = await req.json();
+
   const payload = body?.payload;
+  const isPublic = Boolean(body?.isPublic); 
 
   if (!payload) {
     return NextResponse.json({ error: "Missing payload" }, { status: 400 });
@@ -11,7 +13,7 @@ export async function POST(req: Request) {
 
   const { data, error } = await supabaseServer
     .from("boxes")
-    .insert({ payload })
+    .insert({ payload, is_public: isPublic })
     .select("id")
     .single();
 

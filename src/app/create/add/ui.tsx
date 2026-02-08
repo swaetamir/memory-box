@@ -674,7 +674,7 @@ export default function AddStuffClient() {
       {/* view box */}
       <Link
         href="/create/view"
-        className="absolute left-[1500px] top-[860px] text-white hover:opacity-80"
+        className="absolute left-[1400px] top-[780px] text-white hover:opacity-80"
       >
         <div className="font-gambarino text-[30px] leading-none">view box →</div>
         <div className="mt-1 w-[157px] border-t-[2px] border-white" />

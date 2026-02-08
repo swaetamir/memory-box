@@ -256,7 +256,7 @@ function hashStringToInt(str: string) {
     const [sending, setSending] = useState(false);
     const [createdBoxId, setCreatedBoxId] = useState<string>("");
   
-    const copiedTimerRef = useRef<number | null>(null); // ✅ MOVE THIS UP HERE
+    const copiedTimerRef = useRef<number | null>(null); 
   
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -287,6 +287,8 @@ function hashStringToInt(str: string) {
     const songText = songs.map((s) => s.embedUrl ?? "").join(" ");
     return `${noteText} ${songText}`.trim();
   }, [notes, songs]);
+
+  const hasContent = notes.length > 0 || photos.length > 0 || songs.length > 0;
   
   const { theme, others } = useMemo(() => detectThemeFromText(contentText), [contentText]);
 
@@ -383,10 +385,10 @@ function hashStringToInt(str: string) {
             </div>
 
           <div className="absolute left-[1400px] top-[840px] font-gambarino text-[25px] hover:opacity-80">
-            <Link href="/create/add">send another →</Link>
+            <Link href="/create/">send another →</Link>
           </div>
-          <div className="absolute left-[1400px] top-[880px] font-gambarino text-[25px] hover:opacity-80">
-            <Link href="/create/view?community=1">see community boxes →</Link>
+          <div className="absolute left-[1400px] top-[880px] font-gambarino text-[20px] opacity-40">
+             see community boxes (coming soon)
           </div>
         </>
       )}
@@ -396,17 +398,33 @@ function hashStringToInt(str: string) {
 
       {!isSent && !isCommunity && (
         <>
-          {/* top left text */}
-          <div className="absolute left-[66px] top-[30px] font-gambarino text-[25px]">
-            theme detected: {theme}
-          </div>
-          <div className="absolute left-[67px] top-[65px] font-gambarino text-[25px]">
-            {others} others have created boxes like this...
-          </div>
+          {/* top left text (only when content exists) */}
+          {hasContent ? (
+            <>
+              <div className="absolute left-[66px] top-[30px] font-gambarino text-[25px]">
+                theme detected: {theme}
+              </div>
+              <div className="absolute left-[67px] top-[65px] font-gambarino text-[25px]">
+                {others} others have created boxes like this...
+              </div>
+            </>
+          ) : (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
+              <div className="font-gambarino text-[36px] opacity-90">your box is empty!</div>
+              <div className="font-gambarino text-[18px] opacity-70">go back and add a note, photo, or song.</div>
+              <Link
+                href="/create"
+                className="font-gambarino text-[22px] underline hover:opacity-80"
+              >
+                ← go back
+              </Link>
+            </div>
+          )}
 
           {/* final rendered box */}
-          <div className="absolute left-[420px] top-[180px] pointer-events-none">
-            <BoxCanvas>
+          {hasContent ? (
+            <div className="absolute left-[420px] top-[180px] pointer-events-none">
+              <BoxCanvas>
               {/* notes */}
               {notes.map((note) => (
                 <div
@@ -484,8 +502,9 @@ function hashStringToInt(str: string) {
                   </div>
                 </div>
               ))}
-            </BoxCanvas>
-          </div>
+              </BoxCanvas>
+            </div>
+          ) : null}
 
           {/* final CTA */}
           {!shareUrl ? (
