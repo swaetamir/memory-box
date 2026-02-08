@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import BoxCanvas from "@/components/box/BoxCanvas";
 import GiftBox from "@/components/GiftBox";
+import Stage from "@/components/Stage";
 
 type NoteItem = {
   id: string;
@@ -351,7 +352,8 @@ function hashStringToInt(str: string) {
   }, []);
 
   return (
-    <main className="relative min-h-screen bg-[#101B36] text-white overflow-hidden">
+    <Stage baseWidth={1728} baseHeight={960}>
+      <main className="relative w-full h-full bg-[#101B36] text-white overflow-hidden">
       {/* community placeholder */}
       {isCommunity && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
@@ -526,7 +528,7 @@ function hashStringToInt(str: string) {
             </button>
           ) : null}
           {shareUrl ? (
-            <div className="absolute left-[1400px] top-[840px] w-[400px] font-gambarino z-50">
+            <div className="absolute left-[1300px] top-[840px] w-[400px] font-gambarino z-50">
               <div className="text-[13px] opacity-80 mb-0.1">link:</div>
               <div className="flex gap-2">
                 <input
@@ -548,7 +550,8 @@ function hashStringToInt(str: string) {
           ) : null}
         </>
       )}
-    </main>
+      </main>
+    </Stage>
   );
 }
 

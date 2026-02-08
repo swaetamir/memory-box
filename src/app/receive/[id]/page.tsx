@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import GiftBox from "@/components/GiftBox";
 import BoxCanvas from "@/components/box/BoxCanvas";
@@ -35,7 +35,6 @@ type SongItem = {
 };
 
 const STORAGE_KEY = "memory-box:draft:add";
-const SHARE_PREFIX = "memory-box:box:";
 
 
 export default function ReceivePage() {
@@ -49,65 +48,169 @@ export default function ReceivePage() {
   const params = useParams();
   const shareId = typeof params?.id === "string" ? params.id : "";
 
-  // load the same draft for demo (later: fetch by id)
+  const BASE_W = 1728;
+  const BASE_H = 960;
+
+  const [viewport, setViewport] = useState({ w: 0, h: 0 });
+
   useEffect(() => {
-    try {
-        const raw =
-        (shareId ? localStorage.getItem(`${SHARE_PREFIX}${shareId}`) : null) ??
-        localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-
-      const parsed = JSON.parse(raw) as {
-        notes?: Partial<NoteItem>[];
-        photos?: Partial<PhotoItem>[];
-        songs?: Partial<SongItem>[];
-      };
-
-      if (parsed?.notes) {
-        setNotes(
-          parsed.notes.map((n) => ({
-            id: n.id ?? crypto.randomUUID(),
-            type: "note",
-            text: n.text ?? "",
-            x: typeof n.x === "number" ? n.x : 24,
-            y: typeof n.y === "number" ? n.y : 24,
-            z: typeof n.z === "number" ? n.z : 1,
-            rotationDeg:
-              typeof (n as any).rotationDeg === "number" ? (n as any).rotationDeg : 8,
-          }))
-        );
-      }
-
-      if (parsed?.photos) {
-        setPhotos(
-          parsed.photos.map((p) => ({
-            id: p.id ?? crypto.randomUUID(),
-            type: "photo",
-            src: typeof p.src === "string" ? p.src : "",
-            x: typeof p.x === "number" ? p.x : 40,
-            y: typeof p.y === "number" ? p.y : 40,
-            z: typeof p.z === "number" ? p.z : 1,
-            rotationDeg:
-              typeof (p as any).rotationDeg === "number" ? (p as any).rotationDeg : 8,
-          }))
-        );
-      }
-
-      if (parsed?.songs) {
-        setSongs(
-          parsed.songs.map((s) => ({
-            id: s.id ?? crypto.randomUUID(),
-            type: "song",
-            embedUrl: typeof s.embedUrl === "string" ? s.embedUrl : "",
-            x: typeof s.x === "number" ? s.x : 60,
-            y: typeof s.y === "number" ? s.y : 320,
-            z: typeof s.z === "number" ? s.z : 1,
-          }))
-        );
-      }
-    } catch {
-      // ignore
+    function onResize() {
+      setViewport({ w: window.innerWidth, h: window.innerHeight });
     }
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  const stage = useMemo(() => {
+    const w = viewport.w || BASE_W;
+    const h = viewport.h || BASE_H;
+    const scale = Math.min(w / BASE_W, h / BASE_H);
+    const left = (w - BASE_W * scale) / 2;
+    const top = (h - BASE_H * scale) / 2;
+    return { scale, left, top };
+  }, [viewport.w, viewport.h]);
+
+  // load by id (cross-device) 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      // fetch from DB by id (works across devices)
+      try {
+        if (shareId) {
+          const res = await fetch(`/api/boxes/${shareId}`);
+          const json = await res.json();
+          if (!res.ok) throw new Error(json?.error ?? "Failed to load box");
+
+          const parsed = (json?.payload ?? {}) as {
+            notes?: Partial<NoteItem>[];
+            photos?: Partial<PhotoItem>[];
+            songs?: Partial<SongItem>[];
+          };
+
+          if (cancelled) return;
+
+          if (parsed?.notes) {
+            setNotes(
+              parsed.notes.map((n) => ({
+                id: n.id ?? crypto.randomUUID(),
+                type: "note",
+                text: n.text ?? "",
+                x: typeof n.x === "number" ? n.x : 24,
+                y: typeof n.y === "number" ? n.y : 24,
+                z: typeof n.z === "number" ? n.z : 1,
+                rotationDeg:
+                  typeof (n as any).rotationDeg === "number" ? (n as any).rotationDeg : 8,
+              }))
+            );
+          } else {
+            setNotes([]);
+          }
+
+          if (parsed?.photos) {
+            setPhotos(
+              parsed.photos.map((p) => ({
+                id: p.id ?? crypto.randomUUID(),
+                type: "photo",
+                src: typeof p.src === "string" ? p.src : "",
+                x: typeof p.x === "number" ? p.x : 40,
+                y: typeof p.y === "number" ? p.y : 40,
+                z: typeof p.z === "number" ? p.z : 1,
+                rotationDeg:
+                  typeof (p as any).rotationDeg === "number" ? (p as any).rotationDeg : 8,
+              }))
+            );
+          } else {
+            setPhotos([]);
+          }
+
+          if (parsed?.songs) {
+            setSongs(
+              parsed.songs.map((s) => ({
+                id: s.id ?? crypto.randomUUID(),
+                type: "song",
+                embedUrl: typeof s.embedUrl === "string" ? s.embedUrl : "",
+                x: typeof s.x === "number" ? s.x : 60,
+                y: typeof s.y === "number" ? s.y : 320,
+                z: typeof s.z === "number" ? s.z : 1,
+              }))
+            );
+          } else {
+            setSongs([]);
+          }
+
+          return;
+        }
+      } catch {
+        // ignore and try local fallback below
+      }
+
+      // optional fallback
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+
+        const parsed = JSON.parse(raw) as {
+          notes?: Partial<NoteItem>[];
+          photos?: Partial<PhotoItem>[];
+          songs?: Partial<SongItem>[];
+        };
+
+        if (cancelled) return;
+
+        if (parsed?.notes) {
+          setNotes(
+            parsed.notes.map((n) => ({
+              id: n.id ?? crypto.randomUUID(),
+              type: "note",
+              text: n.text ?? "",
+              x: typeof n.x === "number" ? n.x : 24,
+              y: typeof n.y === "number" ? n.y : 24,
+              z: typeof n.z === "number" ? n.z : 1,
+              rotationDeg:
+                typeof (n as any).rotationDeg === "number" ? (n as any).rotationDeg : 8,
+            }))
+          );
+        }
+
+        if (parsed?.photos) {
+          setPhotos(
+            parsed.photos.map((p) => ({
+              id: p.id ?? crypto.randomUUID(),
+              type: "photo",
+              src: typeof p.src === "string" ? p.src : "",
+              x: typeof p.x === "number" ? p.x : 40,
+              y: typeof p.y === "number" ? p.y : 40,
+              z: typeof p.z === "number" ? p.z : 1,
+              rotationDeg:
+                typeof (p as any).rotationDeg === "number" ? (p as any).rotationDeg : 8,
+            }))
+          );
+        }
+
+        if (parsed?.songs) {
+          setSongs(
+            parsed.songs.map((s) => ({
+              id: s.id ?? crypto.randomUUID(),
+              type: "song",
+              embedUrl: typeof s.embedUrl === "string" ? s.embedUrl : "",
+              x: typeof s.x === "number" ? s.x : 60,
+              y: typeof s.y === "number" ? s.y : 320,
+              z: typeof s.z === "number" ? s.z : 1,
+            }))
+          );
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
   }, [shareId]);
 
   useEffect(() => {
@@ -121,7 +224,16 @@ export default function ReceivePage() {
   }, [opened]);
 
   return (
-    <main className="relative min-h-screen bg-[#101B36] text-white overflow-hidden">
+    <div className="w-screen h-screen bg-[#101B36] text-white overflow-hidden">
+      <div
+        style={{
+          width: 1728,
+          height: 960,
+          transform: `translate(${stage.left}px, ${stage.top}px) scale(${stage.scale})`,
+          transformOrigin: "top left",
+        }}
+        className="relative"
+      >
       {!opened ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
           <button
@@ -239,6 +351,7 @@ export default function ReceivePage() {
           </div>
         </>
       )}
-    </main>
+      </div>
+    </div>
   );
 }
