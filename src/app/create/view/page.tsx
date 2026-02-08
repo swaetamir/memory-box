@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import BoxCanvas from "@/components/box/BoxCanvas";
@@ -245,39 +245,40 @@ function hashStringToInt(str: string) {
     return { theme: bestLabel, others };
   }
 
-export default function ViewBoxPage() {
-  const [notes, setNotes] = useState<NoteItem[]>([]);
-  const [photos, setPhotos] = useState<PhotoItem[]>([]);
-  const [songs, setSongs] = useState<SongItem[]>([]);
-  const [copied, setCopied] = useState(false);
-  const [shareUrl, setShareUrl] = useState<string>("");
-  const [copyError, setCopyError] = useState<string>("");
-  const [sending, setSending] = useState(false);
-  const [createdBoxId, setCreatedBoxId] = useState<string>("");
+  function ViewBoxInner() {
+    const [notes, setNotes] = useState<NoteItem[]>([]);
+    const [photos, setPhotos] = useState<PhotoItem[]>([]);
+    const [songs, setSongs] = useState<SongItem[]>([]);
+    const [copied, setCopied] = useState(false);
+    const [shareUrl, setShareUrl] = useState<string>("");
+    const [copyError, setCopyError] = useState<string>("");
+    const [sending, setSending] = useState(false);
+    const [createdBoxId, setCreatedBoxId] = useState<string>("");
   
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const isSent = searchParams.get("sent") === "1";
-  const isCommunity = searchParams.get("community") === "1";
+    const copiedTimerRef = useRef<number | null>(null); // ✅ MOVE THIS UP HERE
+  
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const isSent = searchParams.get("sent") === "1";
+    const isCommunity = searchParams.get("community") === "1";
+  
+    const handleManualCopy = useCallback(async () => {
+      if (!shareUrl) return;
+      try {
+        setCopyError("");
+        await copyToClipboard(shareUrl);
+        setCopied(true);
+        if (copiedTimerRef.current) window.clearTimeout(copiedTimerRef.current);
+        copiedTimerRef.current = window.setTimeout(() => setCopied(false), 1200);
+  
+        window.setTimeout(() => {
+          router.push("/create/view?sent=1");
+        }, 650);
+      } catch {
+        setCopyError("Copy blocked — click the link field, press ⌘C, then try the copy button again.");
+      }
+    }, [shareUrl, router]);
 
-  const handleManualCopy = useCallback(async () => {
-    if (!shareUrl) return;
-    try {
-      setCopyError("");
-      await copyToClipboard(shareUrl);
-      setCopied(true);
-      if (copiedTimerRef.current) window.clearTimeout(copiedTimerRef.current);
-      copiedTimerRef.current = window.setTimeout(() => setCopied(false), 1200);
-
-      // after a successful copy, move to sent screen
-      window.setTimeout(() => {
-        router.push("/create/view?sent=1");
-      }, 650);
-    } catch {
-      setCopyError("Copy blocked — click the link field, press ⌘C, then try the copy button again.");
-    }
-  }, [shareUrl, router]);
-  const copiedTimerRef = useRef<number | null>(null);
 
   const contentText = useMemo(() => {
     const noteText = notes.map((n) => n.text ?? "").join(" ");
@@ -548,5 +549,19 @@ export default function ViewBoxPage() {
         </>
       )}
     </main>
+  );
+}
+
+export default function ViewBoxPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-[#101B36] text-white flex items-center justify-center font-gambarino text-2xl">
+          loading…
+        </main>
+      }
+    >
+      <ViewBoxInner />
+    </Suspense>
   );
 }
