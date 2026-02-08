@@ -39,7 +39,10 @@ export default function Stage({
   }, [baseWidth, baseHeight]);
 
   return (
-    <div className="min-h-screen w-screen bg-[#101B36] overflow-hidden flex items-center justify-center">
+    <div
+      className="w-screen bg-[#101B36] flex items-center justify-center overflow-x-hidden"
+      style={{ minHeight: "100dvh", paddingBottom: "env(safe-area-inset-bottom)", paddingTop: "env(safe-area-inset-top)" }}
+    >
       <div
         style={{
           width: baseWidth,
